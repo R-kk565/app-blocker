@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アプリブロッカー</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: #1a1a2e;
+    }
+
+    h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #444;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 680px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    /* Daemon status */
+    .daemon-bar {
+      max-width: 960px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px 18px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.on  { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .status-dot.off { background: #d1d5db; }
+
+    .daemon-label { font-size: 0.9rem; color: #555; flex: 1; }
+
+    .btn {
+      padding: 7px 16px;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-green  { background: #22c55e; color: #fff; }
+    .btn-red    { background: #ef4444; color: #fff; }
+    .btn-blue   { background: #3b82f6; color: #fff; }
+    .btn-gray   { background: #e5e7eb; color: #555; }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+
+    /* Add rule form */
+    .form-group { margin-bottom: 14px; }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #555;
+    }
+
+    select, input[type="time"], input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: #fafafa;
+      color: #1a1a2e;
+      outline: none;
+      transition: border-color .15s;
+    }
+    select:focus, input:focus { border-color: #3b82f6; background: #fff; }
+
+    .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .days-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .day-btn {
+      text-align: center;
+      padding: 6px 2px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      user-select: none;
+      transition: all .15s;
+      background: #fafafa;
+      color: #555;
+    }
+    .day-btn input { display: none; }
+    .day-btn.selected {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+
+    .btn-full { width: 100%; margin-top: 4px; }
+
+    /* Rules list */
+    .rule-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .rule-card {
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: opacity .2s;
+    }
+    .rule-card.disabled { opacity: 0.45; }
+
+    .rule-info { flex: 1; min-width: 0; }
+
+    .rule-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .rule-meta {
+      font-size: 0.78rem;
+      color: #777;
+      margin-top: 3px;
+    }
+
+    .rule-days {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-top: 5px;
+    }
+
+    .day-tag {
+      background: #eff6ff;
+      color: #3b82f6;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      font-weight: 600;
+    }
+
+    .rule-actions { display: flex; gap: 5px; flex-shrink: 0; }
+
+    .empty-state {
+      text-align: center;
+      color: #aaa;
+      padding: 30px 0;
+      font-size: 0.9rem;
+    }
+
+    .search-wrapper { position: relative; margin-bottom: 14px; }
+    .search-wrapper input { padding-left: 30px; }
+    .search-wrapper::before {
+      content: "🔍";
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div style="max-width:960px;margin:0 auto 20px;">
+  <h1>🚫 アプリブロッカー</h1>
+</div>
+
+<!-- Daemon Status Bar -->
+<div class="daemon-bar">
+  <div class="status-dot {{ 'on' if daemon_status.running else 'off' }}"></div>
+  <span class="daemon-label">
+    {% if daemon_status.running %}
+      監視中 (PID: {{ daemon_status.pid }})
+    {% else %}
+      監視停止中
+    {% endif %}
+  </span>
+  {% if daemon_status.running %}
+    <form method="post" action="/daemon/stop">
+      <button class="btn btn-red" type="submit">停止</button>
+    </form>
+  {% else %}
+    <form method="post" action="/daemon/start">
+      <button class="btn btn-green" type="submit">監視開始</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="layout">
+
+  <!-- Add Rule Form -->
+  <div class="card">
+    <h2>ブロックルールを追加</h2>
+
+    <form method="post" action="/add" id="addForm">
+
+      <div class="form-group">
+        <label for="app_select">アプリを選択または入力</label>
+        <div class="search-wrapper" style="margin-bottom:6px;">
+          <input type="text" id="searchInput" placeholder="アプリ名で絞り込み..." autocomplete="off">
+        </div>
+        <select name="app_name" id="app_select" size="7" style="height:auto;">
+          {% for proc in processes %}
+            <option value="{{ proc }}">{{ proc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>ブロック時間帯</label>
+        <div class="time-row">
+          <div>
+            <label style="margin-bottom:3px;">開始</label>
+            <input type="time" name="start_time" value="09:00" required>
+          </div>
+          <div>
+            <label style="margin-bottom:3px;">終了</label>
+            <input type="time" name="end_time" value="18:00" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>曜日</label>
+        <div class="days-grid">
+          {% set day_labels = [("mon","月"),("tue","火"),("wed","水"),("thu","木"),("fri","金"),("sat","土"),("sun","日")] %}
+          {% for val, label in day_labels %}
+            <label class="day-btn selected" id="day_{{ val }}">
+              <input type="checkbox" name="days" value="{{ val }}" checked>
+              {{ label }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-blue btn-full">追加</button>
+    </form>
+  </div>
+
+  <!-- Rules List -->
+  <div class="card">
+    <h2>登録済みルール ({{ blocked_apps | length }}件)</h2>
+
+    {% if blocked_apps %}
+      <div class="rule-list">
+        {% for rule in blocked_apps %}
+          <div class="rule-card {{ '' if rule.get('enabled', True) else 'disabled' }}">
+            <div class="rule-info">
+              <div class="rule-name">{{ rule.name }}</div>
+              <div class="rule-meta">{{ rule.start_time }} 〜 {{ rule.end_time }}</div>
+              <div class="rule-days">
+                {% set day_map = {"mon":"月","tue":"火","wed":"水","thu":"木","fri":"金","sat":"土","sun":"日"} %}
+                {% for d in rule.get("days", []) %}
+                  <span class="day-tag">{{ day_map.get(d, d) }}</span>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="rule-actions">
+              <form method="post" action="/toggle/{{ loop.index0 }}">
+                <button class="btn btn-gray btn-sm" type="submit">
+                  {{ "有効" if not rule.get("enabled", True) else "無効" }}
+                </button>
+              </form>
+              <form method="post" action="/delete/{{ loop.index0 }}"
+                    onsubmit="return confirm('削除しますか？')">
+                <button class="btn btn-red btn-sm" type="submit">削除</button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        ルールがありません。<br>左のフォームから追加してください。
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  // Day toggle
+  document.querySelectorAll('.day-btn').forEach(label => {
+    label.addEventListener('click', () => {
+      const cb = label.querySelector('input');
+      cb.checked = !cb.checked;
+      label.classList.toggle('selected', cb.checked);
+    });
+  });
+
+  // App search filter
+  const searchInput = document.getElementById('searchInput');
+  const appSelect  = document.getElementById('app_select');
+  const allOptions = Array.from(appSelect.options).map(o => ({ val: o.value, text: o.text }));
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase();
+    const filtered = allOptions.filter(o => o.val.toLowerCase().includes(q));
+    appSelect.innerHTML = '';
+    filtered.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.val;
+      opt.text  = o.text;
+      appSelect.appendChild(opt);
+    });
+  });
+</script>
+
+</body>
+</html>
